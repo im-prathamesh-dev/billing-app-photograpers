@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FiHome, FiFileText, FiUsers, FiLogOut } from "react-icons/fi";
+import { FiHome, FiFileText, FiLogOut } from "react-icons/fi";
 import "./sidebar.css";
 
 export default function Sidebar({ show, setShow }) {
@@ -70,13 +70,13 @@ export default function Sidebar({ show, setShow }) {
 
           <li className="nav-item mb-2">
             <Link
-              to="/customers"
+              to="/invoices"
               className={`nav-link d-flex align-items-center gap-2 px-3 py-2 rounded 
-              ${isActive("/customers") ? "active-link" : "text-white"}`}
+              ${isActive("/invoices") ? "active-link" : "text-white"}`}
               onClick={() => setShow(false)}
             >
-              <FiUsers size={20} />
-              Customers
+              <FiFileText size={20} />
+              Invoices
             </Link>
           </li>
         </ul>

@@ -1,205 +1,350 @@
 import Sidebar from "../component/Sidebar";
 import { useState } from "react";
-import { FiMenu } from "react-icons/fi";   // <-- ADD THIS
+import { FiMenu, FiPlus, FiTrash } from "react-icons/fi";
+import axios from "axios";
 
 export default function GenerateBill() {
   const [showSidebar, setShowSidebar] = useState(false);
 
-  const [customerName, setCustomerName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [sessionType, setSessionType] = useState("");
-  const [basePrice, setBasePrice] = useState("");
-  const [extraCharges, setExtraCharges] = useState("");
-  const [discount, setDiscount] = useState("");
-  const [finalTotal, setFinalTotal] = useState(0);
-//   const [notes, setNotes] = useState("");
+  const [customer, setCustomer] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+  });
+
+  const [projectType, setProjectType] = useState("");
+
+  const [items, setItems] = useState([
+    { title: "", description: "", qty: 1, rate: 0, amount: 0 },
+  ]);
+
+  const [tax, setTax] = useState(0);
+  const [discount, setDiscount] = useState(0);
+  const [paidAmount, setPaidAmount] = useState(0);
+
+  const [issueDate, setIssueDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
+
+  const [notes, setNotes] = useState("");
+
+  const [subTotal, setSubTotal] = useState(0);
+  const [total, setTotal] = useState(0);
+
   const [errors, setErrors] = useState({});
 
-  const validateForm = () => {
-    const newErrors = {};
+  // ------------------------------
+  // VALIDATION
+  // ------------------------------
+  const validate = () => {
+    const err = {};
 
-    if (!customerName.trim()) newErrors.customerName = "Required";
-    if (!phone.trim()) newErrors.phone = "Required";
-    else if (phone.length !== 10) newErrors.phone = "10 digits required";
+    if (!customer.name.trim()) err.name = "Customer name required";
+    if (!customer.phone.trim() || customer.phone.length !== 10)
+      err.phone = "Valid phone required";
 
-    if (!sessionType.trim()) newErrors.sessionType = "Required";
-    if (!basePrice) newErrors.basePrice = "Required";
+    if (!projectType) err.projectType = "Select project type";
+    if (items.some((i) => !i.title.trim())) err.items = "Item title required";
+    if (!issueDate) err.issueDate = "Issue date required";
 
-    if (basePrice < 0) newErrors.basePrice = "Invalid";
-    if (extraCharges < 0) newErrors.extraCharges = "Invalid";
-    if (discount < 0) newErrors.discount = "Invalid";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(err);
+    return Object.keys(err).length === 0;
   };
 
-  const calculateTotal = () => {
-    if (!validateForm()) return;
+  // ------------------------------
+  // ITEM HANDLERS
+  // ------------------------------
+  const updateItem = (index, field, value) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
 
-    const total =
-      Number(basePrice || 0) +
-      Number(extraCharges || 0) -
-      Number(discount || 0);
+    newItems[index].amount =
+      newItems[index].qty * newItems[index].rate || 0;
 
-    setFinalTotal(total);
+    setItems(newItems);
+    recalcTotals(newItems);
   };
 
-  const generateWhatsAppInvoice = () => {
-    if (!validateForm()) return;
+  const addItem = () => {
+    setItems([
+      ...items,
+      { title: "", description: "", qty: 1, rate: 0, amount: 0 },
+    ]);
+  };
 
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 3);
+  const removeItem = (index) => {
+    const newItems = items.filter((_, i) => i !== index);
+    setItems(newItems);
+    recalcTotals(newItems);
+  };
 
-    const message = `
-📸 *PHOTOGRAPHY INVOICE*
-────────────────────────
-👤 Customer: ${customerName}
-📞 Phone: ${phone}
+  // ------------------------------
+  // TOTAL CALCULATION
+  // ------------------------------
+  const recalcTotals = (updatedItems = items) => {
+    const st = updatedItems.reduce((sum, item) => sum + item.amount, 0);
+    const taxAmount = st * (tax / 100);
+    const totalAmount = st + taxAmount - discount;
 
-📷 Session: ${sessionType}
-💰 Base Price: ₹${basePrice}
-➕ Extra Charges: ₹${extraCharges}
-➖ Discount: ₹${discount}
+    setSubTotal(st);
+    setTotal(totalAmount);
+  };
 
-🟩 *Total: ₹${finalTotal}*
-🗓 Due Date: ${dueDate.toDateString()}
-`;
+  // ------------------------------
+  // SUBMIT INVOICE TO BACKEND
+  // ------------------------------
+  const saveInvoice = async () => {
+    if (!validate()) return;
 
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
+    try {
+      const payload = {
+        customer,
+        projectType,
+        items,
+        subTotal,
+        tax,
+        discount,
+        total,
+        paidAmount,
+        issueDate,
+        dueDate,
+        notes,
+        createdBy: "USER_ID", // replace with logged user id later
+      };
+
+      const res = await axios.post("http://localhost:5000/api/invoices/create", payload, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        }
+      });
+
+      alert("Invoice created successfully!");
+      console.log(res.data);
+      window.location.href = "/dashboard";
+    } catch (err) {
+      alert("Error saving invoice");
+      console.log(err);
+    }
   };
 
   return (
     <div className="d-flex">
 
-      {/* Sidebar */}
       <Sidebar show={showSidebar} setShow={setShowSidebar} />
 
       {/* PAGE CONTENT */}
       <div className="container-fluid p-4">
 
-        {/* HAMBURGER MENU — MOBILE ONLY */}
-        <button
-          className="btn btn-dark d-md-none"
-          style={{
-            position: "fixed",
-            top: "15px",
-            left: "15px",
-            zIndex: 3001,
-            borderRadius: "6px",
-          }}
-          onClick={() => setShowSidebar(true)}
-        >
-          <FiMenu size={24} />  {/* <-- ICON */}
-        </button>
+        {/* Hamburger */}
+        {!showSidebar && (
+          <button
+            className="btn btn-dark d-md-none"
+            style={{
+              position: "fixed",
+              top: "15px",
+              left: "15px",
+              zIndex: 3001,
+              borderRadius: "6px",
+            }}
+            onClick={() => setShowSidebar(true)}
+          >
+            <FiMenu size={24} />
+          </button>
+        )}
 
-        <h2 className="fw-bold mb-4 mt-4">Generate Photography Invoice</h2>
+        <h2 className="fw-bold mb-4 mt-4">Create Invoice</h2>
 
         <div className="card p-4 shadow-lg border-0">
 
-          {/* Customer Section */}
+          {/* CUSTOMER SECTION */}
           <h5 className="fw-bold text-secondary mb-3">Customer Details</h5>
 
-          <div className="row">
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Full Name</label>
-              <input
-                className="form-control form-control-lg"
-                onChange={(e) => setCustomerName(e.target.value)}
-              />
-              {errors.customerName && (
-                <small className="text-danger">{errors.customerName}</small>
-              )}
-            </div>
-
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Phone</label>
-              <input
-                className="form-control form-control-lg"
-                onChange={(e) => setPhone(e.target.value)}
-              />
-              {errors.phone && <small className="text-danger">{errors.phone}</small>}
-            </div>
+          <div className="row g-3">
+            {["name", "email", "phone", "address"].map((field) => (
+              <div className="col-md-6" key={field}>
+                <label className="form-label text-capitalize">{field}</label>
+                <input
+                  className="form-control form-control-lg"
+                  onChange={(e) =>
+                    setCustomer({ ...customer, [field]: e.target.value })
+                  }
+                />
+                {errors[field] && (
+                  <small className="text-danger">{errors[field]}</small>
+                )}
+              </div>
+            ))}
           </div>
 
-          {/* Session Section */}
-          <h5 className="fw-bold text-secondary mt-4 mb-3">Session Details</h5>
+          {/* PROJECT TYPE */}
+          <h5 className="fw-bold text-secondary mt-4 mb-3">Project Type</h5>
 
-          <div className="row">
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Session Type</label>
-              <select
-                className="form-select form-select-lg"
-                onChange={(e) => setSessionType(e.target.value)}
-              >
-                <option>Select Session</option>
-                <option>Wedding Photoshoot</option>
-                <option>Pre-Wedding Shoot</option>
-                <option>Maternity Shoot</option>
-                <option>Birthday Event</option>
-                <option>Studio Shoot</option>
-              </select>
-              {errors.sessionType && (
-                <small className="text-danger">{errors.sessionType}</small>
-              )}
-            </div>
-
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Base Price</label>
-              <input
-                type="number"
-                className="form-control form-control-lg"
-                onChange={(e) => setBasePrice(e.target.value)}
-              />
-              {errors.basePrice && (
-                <small className="text-danger">{errors.basePrice}</small>
-              )}
-            </div>
-          </div>
-
-          {/* Extra Charges */}
-          <h5 className="fw-bold text-secondary mt-4 mb-3">Billing Details</h5>
-
-          <div className="row">
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Extra Charges</label>
-              <input
-                type="number"
-                className="form-control form-control-lg"
-                onChange={(e) => setExtraCharges(e.target.value)}
-              />
-            </div>
-
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Discount</label>
-              <input
-                type="number"
-                className="form-control form-control-lg"
-                onChange={(e) => setDiscount(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Buttons */}
-          <button
-            className="btn btn-primary w-100 py-2 fs-5 mt-3"
-            onClick={calculateTotal}
+          <select
+            className="form-select form-select-lg"
+            onChange={(e) => setProjectType(e.target.value)}
           >
-            Calculate Total
-          </button>
-
-          {finalTotal > 0 && (
-            <div className="alert alert-success text-center fs-4 fw-bold mt-3">
-              Total: ₹{finalTotal}
-            </div>
+            <option value="">Select Type</option>
+            <option>Photography</option>
+            <option>Cinematography</option>
+            <option>Editing</option>
+          </select>
+          {errors.projectType && (
+            <small className="text-danger">{errors.projectType}</small>
           )}
 
-          <button
-            onClick={generateWhatsAppInvoice}
-            className="btn btn-success w-100 py-2 fs-5 mt-2"
-          >
-            Send via WhatsApp 📩
+          {/* ITEMS SECTION */}
+          <h5 className="fw-bold text-secondary mt-4 mb-3">
+            Invoice Items
+          </h5>
+
+          {items.map((item, index) => (
+            <div className="row g-3 border rounded p-3 mb-3" key={index}>
+
+              <div className="col-md-4">
+                <label className="form-label">Title</label>
+                <input
+                  className="form-control"
+                  value={item.title}
+                  onChange={(e) => updateItem(index, "title", e.target.value)}
+                />
+              </div>
+
+              <div className="col-md-4">
+                <label className="form-label">Description</label>
+                <input
+                  className="form-control"
+                  value={item.description}
+                  onChange={(e) =>
+                    updateItem(index, "description", e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="col-md-2">
+                <label className="form-label">Qty</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={item.qty}
+                  onChange={(e) => updateItem(index, "qty", e.target.value)}
+                />
+              </div>
+
+              <div className="col-md-2">
+                <label className="form-label">Rate</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={item.rate}
+                  onChange={(e) => updateItem(index, "rate", e.target.value)}
+                />
+              </div>
+
+              <div className="col-md-12 mt-2 d-flex justify-content-between">
+                <strong>Amount: ₹{item.amount}</strong>
+
+                {index > 0 && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => removeItem(index)}
+                  >
+                    <FiTrash />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <button className="btn btn-outline-primary mb-4" onClick={addItem}>
+            <FiPlus /> Add Item
           </button>
 
+          {/* TAX + DISCOUNT */}
+          <div className="row g-3 mt-3">
+            <div className="col-md-4">
+              <label className="form-label">Tax (%)</label>
+              <input
+                type="number"
+                className="form-control"
+                value={tax}
+                onChange={(e) => {
+                  setTax(e.target.value);
+                  recalcTotals();
+                }}
+              />
+            </div>
+
+            <div className="col-md-4">
+              <label className="form-label">Discount (₹)</label>
+              <input
+                type="number"
+                className="form-control"
+                value={discount}
+                onChange={(e) => {
+                  setDiscount(e.target.value);
+                  recalcTotals();
+                }}
+              />
+            </div>
+
+            <div className="col-md-4">
+              <label className="form-label">Paid Amount</label>
+              <input
+                type="number"
+                className="form-control"
+                value={paidAmount}
+                onChange={(e) => setPaidAmount(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* DATES */}
+          <div className="row g-3 mt-3">
+            <div className="col-md-6">
+              <label className="form-label">Issue Date</label>
+              <input
+                type="date"
+                className="form-control"
+                onChange={(e) => setIssueDate(e.target.value)}
+              />
+            </div>
+
+            <div className="col-md-6">
+              <label className="form-label">Due Date</label>
+              <input
+                type="date"
+                className="form-control"
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* NOTES */}
+          <div className="mt-3">
+            <label className="form-label">Notes</label>
+            <textarea
+              className="form-control"
+              rows={3}
+              onChange={(e) => setNotes(e.target.value)}
+            ></textarea>
+          </div>
+
+          {/* TOTAL SECTION */}
+          <div className="mt-4 p-3 bg-light rounded">
+            <h5>Summary</h5>
+            <p className="mb-1">Subtotal: ₹{subTotal}</p>
+            <p className="mb-1">Tax: {tax}%</p>
+            <p className="mb-1">Discount: ₹{discount}</p>
+            <h4 className="fw-bold">Total: ₹{total}</h4>
+          </div>
+
+          {/* SAVE BUTTON */}
+          <button
+            className="btn btn-primary w-100 py-2 fs-5 mt-3"
+            onClick={saveInvoice}
+          >
+            Save Invoice
+          </button>
         </div>
       </div>
     </div>
