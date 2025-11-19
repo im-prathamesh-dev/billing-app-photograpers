@@ -1,0 +1,45 @@
+/* Desktop Sidebar */
+.sidebar {
+  width: 240px;
+}
+
+/* Active Link Style */
+.active-link {
+  background: rgba(255,255,255,0.15) !important;
+  color: #fff !important;
+  font-weight: bold;
+}
+
+/* MOBILE VIEW */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -260px;
+    height: 100vh;
+    width: 240px;
+    background: #1b1b1b;
+    box-shadow: 3px 0 12px rgba(0, 0, 0, 0.4);
+    transition: left 0.3s ease-in-out;
+    z-index: 2000;
+    padding-top: 20px;
+  }
+
+  .sidebar-show {
+    left: 0;
+  }
+
+  /* BACKDROP */
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1500;
+  }
+
+  /* Touch-friendly links */
+  .nav-link {
+    font-size: 17px !important;
+    padding: 12px 14px !important;
+  }
+}
